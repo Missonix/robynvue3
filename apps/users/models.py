@@ -16,14 +16,14 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     phone = Column(String(20), unique=True, index=True, nullable=False)
-    password = Column(String(255), nullable=False)
-    is_admin = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
-    is_deleted = Column(Boolean, default=False)
+    password = Column(String(255), nullable=False) # 密码
+    is_admin = Column(Boolean, default=False) # 是否是管理员
+    is_active = Column(Boolean, default=True) # 是否是激活状态
+    is_deleted = Column(Boolean, default=False) # 是否是删除状态
     ip_address = Column(String(45), nullable=True)  # 支持IPv6地址长度
-    last_login = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True) # 最后登录时间
+    created_at = Column(DateTime, default=datetime.utcnow) # 创建时间
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) # 更新时间
 
     def __repr__(self):
         return (f"User(id={self.id}, username={self.username}, email={self.email}, "

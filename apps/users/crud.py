@@ -1,7 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from core.database import AsyncSessionLocal
+from core.logger import setup_logger
 from apps.users.models import User
 from common.utils.dynamic_query import dynamic_query
+
+# 设置日志记录器
+logger = setup_logger('user_crud')
 
 """
     定义用户CRUD操作, 解耦API和数据库操作
@@ -74,6 +79,57 @@ async def get_users_by_filters(db: AsyncSession, filters=None, order_by=None, li
     result = await db.execute(query)
     # 返回所有完整记录（ORM 对象列表）
     return result.scalars().all()
+
+async def check_username_exists(username: str) -> bool:
+    """
+    检查用户名是否已存在
+    :param username: 用户名
+    :return: 是否存在
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(User).where(User.username == username)
+            )
+            user = result.scalar_one_or_none()
+            return user is not None
+    except Exception as e:
+        logger.error(f"Error checking username existence: {str(e)}")
+        raise
+
+async def check_email_exists(email: str) -> bool:
+    """
+    检查邮箱是否已存在
+    :param email: 邮箱
+    :return: 是否存在
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(User).where(User.email == email)
+            )
+            user = result.scalar_one_or_none()
+            return user is not None
+    except Exception as e:
+        logger.error(f"Error checking email existence: {str(e)}")
+        raise
+
+async def check_phone_exists(phone: str) -> bool:
+    """
+    检查手机号是否已存在
+    :param phone: 手机号
+    :return: 是否存在
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(User).where(User.phone == phone)
+            )
+            user = result.scalar_one_or_none()
+            return user is not None
+    except Exception as e:
+        logger.error(f"Error checking phone existence: {str(e)}")
+        raise
 
 
 

@@ -1,4 +1,7 @@
 import json
+import re
+import random
+from datetime import datetime, timedelta
 from robyn import Headers, Request, Response, jsonify, status_codes
 from apps.users import crud
 from apps.users.models import User
@@ -8,7 +11,7 @@ from apps.users.queries import get_user_by_email, get_user_by_phone
 from core.database import AsyncSessionLocal
 from core.response import ApiResponse
 from core.logger import setup_logger
-from datetime import datetime
+from core.cache import Cache
 
 # 设置日志记录器
 logger = setup_logger('user_services')
@@ -351,37 +354,6 @@ async def logout_user(request):
         print(f"Error: {e}")
         return ApiResponse.error(message="退出登录失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
 
-async def register_precheck_and_send_verification(request):
-    """
-    注册预校验并发送验证码
-    """
-    try:
-        user_data = request.json()
-        username = user_data.get("username")
-        email = user_data.get("email")
-        phone = user_data.get("phone")
-        password = user_data.get("password")
-        
-        if not all([username, email, phone, password]):
-            return ApiResponse.validation_error("缺少必填字段")
-
-        async with AsyncSessionLocal() as db:
-            user_exists = (await crud.get_user_by_filter(db, {"username": username}) or 
-                         await crud.get_user_by_filter(db, {"email": email}) or 
-                         await crud.get_user_by_filter(db, {"phone": phone}))
-            
-            if user_exists:
-                return ApiResponse.error(
-                    message="用户已存在",
-                    status_code=status_codes.HTTP_409_CONFLICT
-                )
-
-            # TODO: 实现发送验证码逻辑
-            return ApiResponse.success(message="验证码已发送")
-            
-    except Exception as e:
-        print(f"Error: {e}")
-        return ApiResponse.error(message="注册预检失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
 
 async def get_user_ip_history(request):
     """
@@ -417,3 +389,218 @@ async def get_user_ip_history(request):
             message="获取用户IP历史失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+
+async def register_precheck_and_send_verification(request):
+    """
+    注册预检并发送验证码
+    """
+    try:
+        logger.info("Starting registration precheck process")
+        
+        # 获取请求数据
+        try:
+            user_data = request.json()
+            logger.debug(f"Received registration request: {user_data}")
+        except Exception as e:
+            logger.error(f"Error parsing JSON data: {str(e)}")
+            return ApiResponse.validation_error("无效的 JSON 格式")
+        
+        # 验证必填字段
+        required_fields = ['username', 'email', 'phone', 'password']
+        for field in required_fields:
+            if field not in user_data:
+                logger.warning(f"Missing required field: {field}")
+                return ApiResponse.validation_error(f"缺少必填字段: {field}")
+        
+        username = user_data['username']
+        email = user_data['email']
+        phone = user_data['phone']
+        
+        
+        # 检查用户名是否已存在
+        try:
+            if await crud.check_username_exists(username):
+                logger.warning(f"Username already exists: {username}")
+                return ApiResponse.validation_error("用户名已存在")
+        except Exception as e:
+            logger.error(f"Error checking username existence: {str(e)}")
+            return ApiResponse.error("用户名检查失败")
+            
+        # 检查邮箱是否已存在
+        try:
+            if await crud.check_email_exists(email):
+                logger.warning(f"Email already exists: {email}")
+                return ApiResponse.validation_error("邮箱已被注册")
+        except Exception as e:
+            logger.error(f"Error checking email existence: {str(e)}")
+            return ApiResponse.error("邮箱检查失败")
+            
+        # 检查手机号是否已存在
+        try:
+            if await crud.check_phone_exists(phone):
+                logger.warning(f"Phone number already exists: {phone}")
+                return ApiResponse.validation_error("手机号已被注册")
+        except Exception as e:
+            logger.error(f"Error checking phone existence: {str(e)}")
+            return ApiResponse.error("手机号检查失败")
+            
+        # 生成验证码
+        from apps.users.utils import generate_numeric_verification_code, send_verification_email
+        verification_code = generate_numeric_verification_code()
+        logger.debug(f"Generated verification code for {email}: {verification_code}")
+        
+        # 缓存验证码和用户数据
+        try:
+            cache_data = {
+                'code': verification_code,
+                'user_data': {
+                    'username': username,
+                    'email': email,
+                    'phone': phone,
+                    'password': user_data['password']
+                }
+            }
+            await Cache.set(f"registration:{email}", cache_data, expire=300)  # 5分钟过期
+            logger.info(f"Verification code and user data cached for {email}")
+        except Exception as e:
+            logger.error(f"Failed to cache verification data: {str(e)}")
+            return ApiResponse.error("验证数据缓存失败")
+            
+        # 发送验证码邮件
+        try:
+            email_sent = await send_verification_email(email, verification_code)
+            if not email_sent:
+                logger.error("Failed to send verification email")
+                return ApiResponse.error("验证码发送失败")
+        except Exception as e:
+            logger.error(f"Error sending verification email: {str(e)}")
+            return ApiResponse.error("验证码发送失败")
+            
+        logger.info("Registration precheck completed successfully")
+        return ApiResponse.success("验证码已发送")
+        
+    except Exception as e:
+        logger.error(f"Registration precheck failed: {str(e)}")
+        return ApiResponse.error("注册预检失败")
+
+
+async def verify_and_register(request: Request) -> Response:
+    """
+    验证码验证并注册用户，注册成功后自动登录
+    """
+    try:
+        logger.info("Starting verification and registration process")
+        
+        # 获取请求数据
+        try:
+            request_data = request.json()
+            logger.debug(f"Received verification request: {request_data}")
+        except Exception as e:
+            logger.error(f"Error parsing JSON data: {str(e)}")
+            return ApiResponse.validation_error("无效的 JSON 格式")
+            
+        email = request_data.get('email')
+        verification_code = request_data.get('code')
+        
+        if not email or not verification_code:
+            logger.warning("Missing email or verification code")
+            return ApiResponse.validation_error("邮箱和验证码不能为空")
+            
+        # 从Redis获取验证码和用户数据
+        try:
+            cached_data = await Cache.get(f"registration:{email}")
+            if not cached_data:
+                logger.warning(f"No registration data found for email: {email}")
+                return ApiResponse.error("验证码已过期")
+                
+            if verification_code != cached_data['code']:
+                logger.warning(f"Invalid verification code for email: {email}")
+                return ApiResponse.error("验证码错误")
+                
+            user_data = cached_data['user_data']
+                
+        except Exception as e:
+            logger.error(f"Error retrieving registration data from cache: {str(e)}")
+            return ApiResponse.error("验证码验证失败")
+            
+        # 创建用户
+        try:
+            # 确保密码被正确加密
+            user_data['password'] = get_password_hash(user_data['password'])
+            
+            # 获取用户IP地址
+            ip_address = request.headers.get("X-Real-IP") or request.headers.get("X-Forwarded-For") or request.ip_addr
+            user_data['ip_address'] = ip_address
+            user_data['last_login'] = datetime.utcnow()
+            user_data['is_admin'] = False  # 默认设置为普通用户
+            
+            async with AsyncSessionLocal() as db:
+                try:
+                    # 再次检查用户是否已存在
+                    existing_user = await crud.get_user_by_filter(db, {"email": email})
+                    if existing_user:
+                        logger.warning(f"User already exists with email: {email}")
+                        return ApiResponse.error("用户已存在")
+                        
+                    new_user = await crud.create_user(db, user_data)
+                    logger.info(f"Created new user with ID: {new_user.id if new_user else 'None'}")
+                    
+                    if new_user and new_user.id:
+                        # 删除注册缓存数据
+                        try:
+                            cache_deleted = await Cache.delete(f"registration:{email}")
+                            if not cache_deleted:
+                                logger.warning(f"Failed to delete registration cache for email: {email}")
+                        except Exception as cache_error:
+                            logger.error(f"Error deleting registration cache: {str(cache_error)}")
+                        
+                        # 生成Token
+                        token_data = {
+                            "sub": new_user.username,
+                            "email": new_user.email,
+                            "is_admin": new_user.is_admin  # 使用用户对象中的 is_admin 值
+                        }
+                        
+                        # 创建访问令牌和刷新令牌
+                        access_token = TokenService.create_access_token(token_data)
+                        refresh_token = TokenService.create_refresh_token(token_data)
+                        
+                        # 创建响应
+                        response = ApiResponse.success(
+                            message="注册成功并已登录",
+                            data={
+                                "username": new_user.username,
+                                "email": new_user.email,
+                                "refresh_token": refresh_token,
+                                "ip_address": ip_address
+                            }
+                        )
+                        
+                        # 设置访问令牌到HttpOnly Cookie
+                        response.headers["Set-Cookie"] = (
+                            f"access_token=Bearer {access_token}; "
+                            f"HttpOnly; Secure; Path=/; SameSite=Strict; "
+                            f"Max-Age={30*60}"  # 30分钟
+                        )
+                        
+                        logger.info(f"User registered and logged in successfully: {email}")
+                        return response
+                    else:
+                        logger.error("User creation returned None or invalid user")
+                        await db.rollback()
+                        return ApiResponse.error("用户创建失败")
+                        
+                except Exception as db_error:
+                    logger.error(f"Database error during user creation: {str(db_error)}")
+                    await db.rollback()
+                    return ApiResponse.error("用户创建失败")
+                    
+        except Exception as e:
+            logger.error(f"Error processing user registration: {str(e)}")
+            return ApiResponse.error("注册处理失败")
+            
+    except Exception as e:
+        logger.error(f"Verification and registration failed: {str(e)}")
+        return ApiResponse.error("注册失败")

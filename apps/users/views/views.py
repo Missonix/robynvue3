@@ -8,7 +8,8 @@ from apps.users.services import (
     login_user,
     refresh_token,
     logout_user,
-    register_precheck_and_send_verification
+    register_precheck_and_send_verification,
+    verify_and_register
 )
 from core.middleware import error_handler, request_logger, auth_required, admin_required, rate_limit
 from core.logger import setup_logger
@@ -22,6 +23,17 @@ logger = setup_logger('user_views')
 async def register_precheck(request: Request) -> Response:
     """注册预检查并发送验证码"""
     return await register_precheck_and_send_verification(request)
+
+
+@error_handler
+@request_logger
+@rate_limit(max_requests=20, time_window=60)  # 1分钟最多20次请求
+async def verify_and_register_user(request: Request) -> Response:
+    """
+    验证码验证并注册用户
+    """
+    return await verify_and_register(request)
+
 
 @error_handler
 @request_logger
