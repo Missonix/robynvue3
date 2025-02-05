@@ -16,14 +16,16 @@ logger = setup_logger('main')
 # 创建 Robyn 实例
 app = Robyn(__file__)
 
-# 配置静态资源
-serve_static_files(app)
-
 # 配置CORS
 configure_cors(app)
 
+# 配置静态资源
+serve_static_files(app)
+
+
+
 # 注册总视图路由
-view_routes(app)
+# view_routes(app)
 
 # 注册商品服务接口路由
 products_api_routes(app)

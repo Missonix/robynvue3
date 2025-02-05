@@ -13,9 +13,9 @@ class User(Base):
     __tablename__ = 'users'
     
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True, nullable=False)
+    username = Column(String(50), unique=True, index=True, nullable=True)
     email = Column(String(100), unique=True, index=True, nullable=False)
-    phone = Column(String(20), unique=True, index=True, nullable=False)
+    phone = Column(String(20), unique=True, index=True, nullable=True)
     password = Column(String(255), nullable=False) # 密码
     is_admin = Column(Boolean, default=False) # 是否是管理员
     is_active = Column(Boolean, default=True) # 是否是激活状态
