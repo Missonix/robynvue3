@@ -12,6 +12,7 @@ from core.database import AsyncSessionLocal
 from core.response import ApiResponse
 from core.logger import setup_logger
 from core.cache import Cache
+from apps.users.utils import generate_user_id
 
 # 设置日志记录器
 logger = setup_logger('user_services')
@@ -28,20 +29,22 @@ async def create_user_service(request):
     """
     try:
         user_data = request.json()
-        username = user_data.get("username")
+        # username = user_data.get("username")
         email = user_data.get("email")
-        phone = user_data.get("phone")
+        # phone = user_data.get("phone")
         password = user_data.get("password")
         
         # 确保必填字段都存在
-        if not all([username, email, phone, password]):
+        if not all([email, password]):
             return ApiResponse.validation_error("缺少必填字段")
 
         # 检查用户是否已存在
         async with AsyncSessionLocal() as db:
-            user_exists = (await crud.get_user_by_filter(db, {"username": username}) or 
-                         await crud.get_user_by_filter(db, {"email": email}) or 
-                         await crud.get_user_by_filter(db, {"phone": phone}))
+            user_exists = (
+                # await crud.get_user_by_filter(db, {"username": username}) or 
+                         await crud.get_user_by_filter(db, {"email": email}) 
+                        #  or await crud.get_user_by_filter(db, {"phone": phone})
+                         )
             
             if user_exists:
                 return ApiResponse.error(
@@ -49,6 +52,7 @@ async def create_user_service(request):
                     status_code=status_codes.HTTP_409_CONFLICT
                 )
 
+            user_data["user_id"] = generate_user_id()
             user_data["password"] = get_password_hash(user_data["password"])
 
             try:
@@ -149,7 +153,7 @@ async def update_user_field_by_email(email, password):
             old_password = user_obj.password
             
                 
-            user = await crud.update_user(db, user_obj.id, user_data)
+            user = await crud.update_user(db, user_obj.user_id, user_data)
             if not user:
                 raise Exception("User update failed")
 
@@ -240,12 +244,11 @@ async def login_user(request):
             async with AsyncSessionLocal() as db:
                 user = await crud.get_user_by_filter(db, {"email": user_data["email"]})
                 if user:
-                    await crud.update_user(db, user.id, {"ip_address": ip_address, "last_login": datetime.utcnow()})
+                    await crud.update_user(db, user.user_id, {"ip_address": ip_address, "last_login": datetime.utcnow()})
                     logger.info(f"Updated user {user.username} IP address to {ip_address}")
             
             # 生成Token
             token_data = {
-                "sub": user_data["username"],
                 "email": user_data["email"],
                 "is_admin": user_data.get("is_admin", False)
             }
@@ -258,7 +261,6 @@ async def login_user(request):
             response = ApiResponse.success(
                 message="登录成功",
                 data={
-                    "username": user_data["username"],
                     "email": user_data["email"],
                     "refresh_token": refresh_token,
                     "ip_address": ip_address
@@ -436,7 +438,7 @@ async def login_user_by_email(request):
             async with AsyncSessionLocal() as db:
                 user = await crud.get_user_by_filter(db, {"email": user_data["email"]})
                 if user:
-                    await crud.update_user(db, user.id, {"ip_address": ip_address, "last_login": datetime.utcnow()})
+                    await crud.update_user(db, user.user_id, {"ip_address": ip_address, "last_login": datetime.utcnow()})
                     logger.info(f"Updated user {user.username} IP address to {ip_address}")
             
             # 生成Token
@@ -549,7 +551,7 @@ async def forgot_password_by_email(request):
             async with AsyncSessionLocal() as db:
                 user = await crud.get_user_by_filter(db, {"email": user_data["email"]})
                 if user:
-                    await crud.update_user(db, user.id, {"ip_address": ip_address, "last_login": datetime.utcnow()})
+                    await crud.update_user(db, user.user_id, {"ip_address": ip_address, "last_login": datetime.utcnow()})
                     logger.info(f"Updated user {user.username} IP address to {ip_address}")
             
             # 生成Token
@@ -712,6 +714,7 @@ async def register_precheck_and_send_verification(request):
         # 验证必填字段
         # required_fields = ['username', 'email', 'phone', 'password']
         required_fields = ['email']
+        
         for field in required_fields:
             if field not in user_data:
                 logger.warning(f"Missing required field: {field}")
@@ -806,6 +809,7 @@ async def verify_and_register(request: Request) -> Response:
             
         email = request_data.get('email')
         verification_code = request_data.get('code')
+
         
         if not email or not verification_code:
             logger.warning("Missing email or verification code")
@@ -827,12 +831,13 @@ async def verify_and_register(request: Request) -> Response:
         except Exception as e:
             logger.error(f"Error retrieving registration data from cache: {str(e)}")
             return ApiResponse.error("验证码验证失败")
+        
             
         # 创建用户
         try:
             # 确保密码被正确加密
             user_data['password'] = get_password_hash(request_data['password'])
-            
+            user_data['user_id'] = generate_user_id()
             # 获取用户IP地址
             ip_address = request.headers.get("X-Real-IP") or request.headers.get("X-Forwarded-For") or request.ip_addr
             user_data['ip_address'] = ip_address
@@ -843,14 +848,15 @@ async def verify_and_register(request: Request) -> Response:
                 try:
                     # 再次检查用户是否已存在
                     existing_user = await crud.get_user_by_filter(db, {"email": email})
+
                     if existing_user:
                         logger.warning(f"User already exists with email: {email}")
                         return ApiResponse.error("用户已存在")
                         
                     new_user = await crud.create_user(db, user_data)
-                    logger.info(f"Created new user with ID: {new_user.id if new_user else 'None'}")
-                    
-                    if new_user and new_user.id:
+                    logger.info(f"Created new user with ID: {new_user.user_id if new_user else 'None'}")
+
+                    if new_user and new_user.user_id:
                         # 删除注册缓存数据
                         try:
                             cache_deleted = await Cache.delete(f"registration:{email}")
@@ -865,10 +871,12 @@ async def verify_and_register(request: Request) -> Response:
                             "email": new_user.email,
                             "is_admin": new_user.is_admin  # 使用用户对象中的 is_admin 值
                         }
+
                         
                         # 创建访问令牌和刷新令牌
                         access_token = TokenService.create_access_token(token_data)
                         refresh_token = TokenService.create_refresh_token(token_data)
+
                         
                         # 创建响应
                         response = ApiResponse.success(

@@ -3,9 +3,9 @@ from robyn import Request, Response, Robyn, status_codes, HttpMethod
 from apps.products.api_routes import products_api_routes # 导入商品服务接口路由
 from apps.users.api_routes import users_api_routes # 导入用户接口路由
 from apps.users.views.view_routes import users_view_routes # 导入用户视图路由
-from core.routes import view_routes # 导入总视图路由
+from apps.chat.api_routes import chat_api_routes # 导入聊天接口路由
 from pathlib import Path
-from settings import serve_static_files, configure_cors
+from settings import configure_cors
 from core.cache import Cache
 from core.logger import setup_logger
 import asyncio
@@ -19,19 +19,17 @@ app = Robyn(__file__)
 # 配置CORS
 configure_cors(app)
 
-# 配置静态资源
-serve_static_files(app)
-
-
-
-# 注册总视图路由
-# view_routes(app)
+# # 配置静态资源
+# serve_static_files(app)
 
 # 注册商品服务接口路由
 products_api_routes(app)
 
 # 注册用户服务接口路由
 users_api_routes(app)
+
+# 注册聊天服务接口路由
+chat_api_routes(app)
 
 # 注册用户服务视图路由
 users_view_routes(app)

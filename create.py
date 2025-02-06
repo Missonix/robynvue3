@@ -3,7 +3,7 @@ from core.database import Base, engine
 # 必须导入所有模型
 from apps.users.models import User
 from apps.products.models import Product
-
+from apps.chat.models import ChatSession, ChatMessage
 """
 创建 初始化asyncio数据库
 """

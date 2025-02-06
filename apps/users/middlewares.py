@@ -59,7 +59,7 @@ class BasicAuthHandler(AuthenticationHandler):
                 
                 return Identity(claims={
                     "user": str(user_dict['username']),
-                    "user_id": str(user_dict['id']),  # 转换为字符串
+                    "user_id": str(user_dict['user_id']),  # 转换为字符串
                     "is_admin": str(user_dict['is_admin']).lower()  # 转换为字符串
                 })
             finally:

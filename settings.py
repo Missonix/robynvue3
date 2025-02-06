@@ -9,20 +9,20 @@ from robyn import Robyn, ALLOW_CORS
 # 获取当前文件路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def serve_static_files(app):
-    """配置静态资源在哪个目录"""
-    app.serve_directory(
-        route="/static",  # 访问路由前缀
-        directory_path=os.path.join(BASE_DIR, "static"),  # 静态文件目录的绝对路径
-        index_file=None  # 不需要指定索引文件
-    )
+# def serve_static_files(app):
+#     """配置静态资源在哪个目录"""
+#     app.serve_directory(
+#         route="/static",  # 访问路由前缀
+#         directory_path=os.path.join(BASE_DIR, "static"),  # 静态文件目录的绝对路径
+#         index_file=None  # 不需要指定索引文件
+#     )
 
-# 创建模板实例
-template = JinjaTemplate(directory=os.path.join(BASE_DIR, "templates"))
+# # 创建模板实例
+# template = JinjaTemplate(directory=os.path.join(BASE_DIR, "templates"))
 
-def render_template(template_name, **kwargs):
-    """全局配置render_template"""
-    return template.render_template(template_name, **kwargs)
+# def render_template(template_name, **kwargs):
+#     """全局配置render_template"""
+#     return template.render_template(template_name, **kwargs)
 
 def configure_cors(app: Robyn):
     """配置CORS"""

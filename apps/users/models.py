@@ -12,8 +12,9 @@ class User(Base):
     """
     __tablename__ = 'users'
     
-    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(20), primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=True)
+    nickname = Column(String(50), index=True, default='undefined', nullable=True)
     email = Column(String(100), unique=True, index=True, nullable=False)
     phone = Column(String(20), unique=True, index=True, nullable=True)
     password = Column(String(255), nullable=False) # 密码
@@ -26,7 +27,7 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) # 更新时间
 
     def __repr__(self):
-        return (f"User(id={self.id}, username={self.username}, email={self.email}, "
+        return (f"User(user_id={self.user_id}, username={self.username}, nickname={self.nickname}, email={self.email}, "
                 f"phone={self.phone}, password={self.password}, is_active={self.is_active}, is_admin={self.is_admin}, "
                 f"created_at={self.created_at}, updated_at={self.updated_at}, is_deleted={self.is_deleted}, "
                 f"ip_address={self.ip_address}, last_login={self.last_login})")
@@ -35,8 +36,9 @@ class User(Base):
         """转换为字典"""
         try:
             return {
-                "id": self.id,
+                "user_id": self.user_id,
                 "username": self.username,
+                "nickname": self.nickname,
                 "email": self.email,
                 "phone": self.phone,
                 "password": self.password,  # 确保包含password字段

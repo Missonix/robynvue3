@@ -15,7 +15,7 @@ logger = setup_logger('user_crud')
 """
 
 # 单表基础操作
-async def get_user(db: AsyncSession, user_id: int):
+async def get_user(db: AsyncSession, user_id: str):
     """
     根据用户ID获取单个用户
     """
@@ -31,7 +31,7 @@ async def create_user(db: AsyncSession, user: dict):
     await db.refresh(new_user)
     return new_user
 
-async def update_user(db: AsyncSession, user_id: int, user_data: dict):
+async def update_user(db: AsyncSession, user_id: str, user_data: dict):
     """
     更新用户
     """
@@ -46,7 +46,7 @@ async def update_user(db: AsyncSession, user_id: int, user_data: dict):
     await db.refresh(user)
     return user
 
-async def delete_user(db: AsyncSession, user_id: int):
+async def delete_user(db: AsyncSession, user_id: str):
     """
     删除用户
     """

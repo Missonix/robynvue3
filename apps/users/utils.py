@@ -18,13 +18,59 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(os.path.join(BASE_DIR, "robyn.env"))
 
 # SMTP配置
-SMTP_SERVER = 'smtp.163.com'  # 电子邮箱服务器的域名
+SMTP_SERVER = 'xxx.xxx.com'  # 电子邮箱服务器的域名
 SMTP_PORT = 25  # SSL/TLS加密端口
-SMTP_USERNAME = 'ackerman0919@163.com'  # 网站官方邮箱地址
-SMTP_PASSWORD = 'XZfLeejapK58EuVS'  # 邮箱接口授权码
+SMTP_USERNAME = 'xxx@xxx.com'  # 网站官方邮箱地址
+SMTP_PASSWORD = 'xxxxx'  # 邮箱接口授权码
 SMTP_USE_TLS = False  # 使用 SSL/TLS 加密
-SMTP_FROM_EMAIL = 'ackerman0919@163.com'  # 网站官方邮箱地址
-SMTP_FROM_NAME = 'RobynVue'  # 网站名称
+SMTP_FROM_EMAIL = 'xxx@xxx.com'  # 网站官方邮箱地址
+SMTP_FROM_NAME = 'xxx'  # 网站名称
+
+import time
+import struct
+
+class Snowflake:
+    '''
+    雪花算法生成用户id
+    '''
+    def __init__(self, worker_id=0, data_center_id=0):
+        self.worker_id = worker_id
+        self.data_center_id = data_center_id
+        self.sequence = 0
+        self.timestamp_left_shift = 22
+        self.worker_id_bits = 5
+        self.data_center_id_bits = 5
+        self.max_worker_id = -1 ^ (-1 << self.worker_id_bits)
+        self.max_data_center_id = -1 ^ (-1 << self.data_center_id_bits)
+        self.sequence_mask = -1 ^ (-1 << 12)
+        self.twepoch = 1609459200000  # 2021-01-01 00:00:00.000Z
+
+    def _tilt(self, timestamp):
+        return timestamp - self.twepoch
+
+    def _generate_id(self, timestamp):
+        id = timestamp << self.timestamp_left_shift
+        id |= self.data_center_id << (self.timestamp_left_shift - self.data_center_id_bits)
+        id |= self.worker_id << (self.timestamp_left_shift - self.worker_id_bits - self.data_center_id_bits)
+        id |= self.sequence
+        return id
+
+    def generate(self):
+        timestamp = int(time.time() * 1000)
+        tilted = self._tilt(timestamp)
+        if tilted < 0:
+            raise Exception("Clock is moving backwards")
+        id = self._generate_id(tilted)
+        self.sequence = (self.sequence + 1) & self.sequence_mask
+        return id
+
+def generate_user_id():
+    '''
+    生成用户id
+    '''
+    snowflake = Snowflake()
+    return snowflake.generate()
+
 
 async def send_verification_email(email: str, verification_code: str) -> bool:
     """
