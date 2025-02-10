@@ -183,3 +183,43 @@ class Cache:
         except Exception as e:
             logger.error(f"Error deleting cache: {str(e)}")
             return False 
+        
+    
+    @classmethod
+    async def set_message(cls, session_id: str, message: dict, expire: int = None):
+        """
+        将消息存储到 Redis 队列
+        :param session_id: 会话 ID
+        :param message: 消息内容（字典格式）
+        :param expire: 过期时间（秒）
+        """
+        key = f"chat:session:{session_id}"
+        # 将消息以 JSON 格式存储
+        message_json = json.dumps(message)
+        try:
+            await cls.ensure_connection()
+            await cls._redis.rpush(key, message_json)
+            # 限制队列长度为 50
+            await cls._redis.ltrim(key, -50, -1)
+            if expire:
+                await cls._redis.expire(key, expire)
+        except Exception as e:
+            logger.error(f"Failed to store message for session {session_id}: {str(e)}")
+            raise
+
+    @classmethod
+    async def get_messages(cls, session_id: str) -> list:
+        """
+        从 Redis 队列中获取消息
+        :param session_id: 会话 ID
+        :return: 消息列表（字典格式）
+        """
+        key = f"chat:session:{session_id}"
+        try:
+            await cls.ensure_connection()
+            messages_json = await cls._redis.lrange(key, 0, -1)
+            # 将 JSON 字符串转换为字典列表
+            return [json.loads(msg) for msg in messages_json]
+        except Exception as e:
+            logger.error(f"Failed to retrieve messages for session {session_id}: {str(e)}")
+            raise

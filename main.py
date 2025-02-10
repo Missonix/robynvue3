@@ -4,6 +4,8 @@ from apps.products.api_routes import products_api_routes # 导入商品服务接
 from apps.users.api_routes import users_api_routes # 导入用户接口路由
 from apps.users.views.view_routes import users_view_routes # 导入用户视图路由
 from apps.chat.api_routes import chat_api_routes # 导入聊天接口路由
+from apps.chat.utils import ai_websocket # 导入AI聊天websocket服务
+from apps.chat.views.view_routes import chat_view_routes # 导入AI聊天视图路由
 from pathlib import Path
 from settings import configure_cors
 from core.cache import Cache
@@ -33,6 +35,12 @@ chat_api_routes(app)
 
 # 注册用户服务视图路由
 users_view_routes(app)
+
+# 注册AI聊天websocket服务
+ai_websocket(app)
+
+# 注册AI聊天视图路由
+chat_view_routes(app)
 
 # 初始化Redis连接的路由
 @app.get("/initialize")

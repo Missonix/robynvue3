@@ -29,19 +29,19 @@ async def create_user_service(request):
     """
     try:
         user_data = request.json()
-        # username = user_data.get("username")
+        username = user_data.get("username")
         email = user_data.get("email")
         # phone = user_data.get("phone")
         password = user_data.get("password")
         
         # 确保必填字段都存在
-        if not all([email, password]):
+        if not all([email, password, username]):
             return ApiResponse.validation_error("缺少必填字段")
 
         # 检查用户是否已存在
         async with AsyncSessionLocal() as db:
             user_exists = (
-                # await crud.get_user_by_filter(db, {"username": username}) or 
+                await crud.get_user_by_filter(db, {"username": username}) or 
                          await crud.get_user_by_filter(db, {"email": email}) 
                         #  or await crud.get_user_by_filter(db, {"phone": phone})
                          )
@@ -249,21 +249,26 @@ async def login_user(request):
             
             # 生成Token
             token_data = {
-                "email": user_data["email"],
-                "is_admin": user_data.get("is_admin", False)
+                "user_id": user_data["user_id"],
+                "username": user_data["username"],
+                "is_admin": user_data.get("is_admin", False),
+                "is_active": user_data.get("is_active", True)
             }
             
             # 创建访问令牌和刷新令牌
             access_token = TokenService.create_access_token(token_data)
-            refresh_token = TokenService.create_refresh_token(token_data)
+            # refresh_token = TokenService.create_refresh_token(token_data)
 
             # 创建响应
             response = ApiResponse.success(
                 message="登录成功",
                 data={
-                    "email": user_data["email"],
-                    "refresh_token": refresh_token,
-                    "ip_address": ip_address
+                    "user_id": user_data["user_id"],
+                    "username": user_data["username"],
+                    "is_admin": user_data.get("is_admin", False),
+                    "is_active": user_data.get("is_active", True),
+                    "ip_address": ip_address,
+                    "access_token": access_token
                 }
             )
             
@@ -300,9 +305,10 @@ async def refresh_token(request):
         
         # 创建新的访问令牌
         token_data = {
-            "sub": payload["sub"],
-            "email": payload["email"],
-            "is_admin": payload.get("is_admin", False)
+            "user_id": payload["user_id"],
+            "username": payload["username"],
+            "is_admin": payload.get("is_admin", False),
+            "is_active": payload.get("is_active", True)
         }
         new_access_token = TokenService.create_access_token(token_data)
         
@@ -324,7 +330,6 @@ async def refresh_token(request):
         print(f"Error refreshing token: {e}")
         return ApiResponse.error(message="令牌刷新失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 async def send_verification_code_by_email(request):
     """
     生成验证码并发送至邮箱
@@ -341,13 +346,13 @@ async def send_verification_code_by_email(request):
             return ApiResponse.error("邮箱检查失败")
 
         from apps.users.utils import generate_numeric_verification_code, send_verification_email
-        verification_code = generate_numeric_verification_code()
-        logger.debug(f"Generated verification code for {email}: {verification_code}")
+        code = generate_numeric_verification_code()
+        logger.debug(f"Generated verification code for {email}: {code}")
         
         # 缓存验证码和用户数据
         try:
             cache_data = {
-                'code': verification_code,
+                'code': code,
                 'user_data': {
                     'email': email
                 }
@@ -360,7 +365,7 @@ async def send_verification_code_by_email(request):
             
         # 发送验证码邮件
         try:
-            email_sent = await send_verification_email(email, verification_code)
+            email_sent = await send_verification_email(email, code)
             if not email_sent:
                 logger.error("Failed to send verification email")
                 return ApiResponse.error("验证码发送失败")
@@ -373,7 +378,6 @@ async def send_verification_code_by_email(request):
     except Exception as e:
         logger.error(f"send verification code failed: {str(e)}")
         return ApiResponse.error("发送验证码失败")
-
 
 async def login_user_by_email(request):
     """
@@ -424,7 +428,6 @@ async def login_user_by_email(request):
                     logger.warning(f"Invalid verification code for email: {email}")
                     return ApiResponse.error("验证码错误")
                     
-                user_data = cached_data['user_data']
                     
             except Exception as e:
                 logger.error(f"Error retrieving registration data from cache: {str(e)}")
@@ -436,15 +439,17 @@ async def login_user_by_email(request):
             
             # 更新用户IP地址
             async with AsyncSessionLocal() as db:
-                user = await crud.get_user_by_filter(db, {"email": user_data["email"]})
+                user = await crud.get_user_by_filter(db, {"email": user_data.get("email")})
                 if user:
-                    await crud.update_user(db, user.user_id, {"ip_address": ip_address, "last_login": datetime.utcnow()})
-                    logger.info(f"Updated user {user.username} IP address to {ip_address}")
+                    await crud.update_user(db, user_data.get("user_id"), {"ip_address": ip_address, "last_login": datetime.utcnow()})
+                    # logger.info(f"Updated user {user_data.get("username")} IP address to {ip_address}")
             
             # 生成Token
             token_data = {
-                "email": user_data["email"],
-                "is_admin": user_data.get("is_admin", False)
+                "user_id": user_data.get("user_id"),
+                "username": user_data.get("username"),
+                "is_admin": user_data.get("is_admin", False),
+                "is_active": user_data.get("is_active", True)
             }
             
             # 创建访问令牌和刷新令牌
@@ -455,8 +460,11 @@ async def login_user_by_email(request):
             response = ApiResponse.success(
                 message="登录成功",
                 data={
-                    "email": user_data["email"],
-                    "refresh_token": refresh_token,
+                    "user_id": user_data["user_id"],
+                    "username": user_data["username"],
+                    "is_admin": user_data.get("is_admin", False),
+                    "is_active": user_data.get("is_active", True),
+                    "access_token": access_token,
                     "ip_address": ip_address
                 }
             )
@@ -528,7 +536,6 @@ async def forgot_password_by_email(request):
                     logger.warning(f"Invalid verification code for email: {email}")
                     return ApiResponse.error("验证码错误")
                     
-                user_data = cached_data['user_data']
                     
             except Exception as e:
                 logger.error(f"Error retrieving registration data from cache: {str(e)}")
@@ -543,7 +550,6 @@ async def forgot_password_by_email(request):
             logger.info(f"change password success")
 
 
-
             # 获取用户IP地址
             ip_address = request.headers.get("X-Real-IP") or request.headers.get("X-Forwarded-For") or request.ip_addr
             
@@ -556,21 +562,25 @@ async def forgot_password_by_email(request):
             
             # 生成Token
             token_data = {
-                "email": user_data["email"],
-                "is_admin": user_data.get("is_admin", False)
+                "user_id": user_data["user_id"],
+                "username": user_data["username"],
+                "is_admin": user_data.get("is_admin", False),
+                "is_active": user_data.get("is_active", True)
             }
             
             # 创建访问令牌和刷新令牌
             access_token = TokenService.create_access_token(token_data)
-            refresh_token = TokenService.create_refresh_token(token_data)
+            # refresh_token = TokenService.create_refresh_token(token_data)
 
             # 创建响应
             response = ApiResponse.success(
                 message="登录成功",
                 data={
-                    "email": user_data["email"],
-                    "new_password": password,
-                    "refresh_token": refresh_token,
+                    "user_id": user_data["user_id"],
+                    "username": user_data["username"],
+                    "is_admin": user_data.get("is_admin", False),
+                    "is_active": user_data.get("is_active", True),
+                    "access_token": access_token,
                     "ip_address": ip_address
                 }
             )
@@ -592,8 +602,6 @@ async def forgot_password_by_email(request):
         logger.error(f"Error processing user login: {str(e)}")
         return ApiResponse.error(message="登录处理失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-
 async def check_and_refresh_token(request):
     """
     检查并自动续期令牌
@@ -608,16 +616,22 @@ async def check_and_refresh_token(request):
         if needs_refresh and payload:
             # 创建新的访问令牌
             token_data = {
-                "sub": payload["sub"],
-                "email": payload["email"],
-                "is_admin": payload.get("is_admin", False)
+                "user_id": payload["user_id"],
+                "username": payload["username"],
+                "is_admin": payload.get("is_admin", False),
+                "is_active": payload.get("is_active", True)
             }
             new_access_token = TokenService.create_access_token(token_data)
             
             # 创建响应
             response = ApiResponse.success(
                 message="令牌已自动续期",
-                data={"username": payload["sub"]}
+                data={
+                    "user_id": payload["user_id"],
+                    "username": payload["username"],
+                    "is_admin": payload.get("is_admin", False),
+                    "is_active": payload.get("is_active", True)
+                }
             )
             
             # 设置新的访问令牌
@@ -641,6 +655,14 @@ async def logout_user(request):
     try:
         # 获取当前令牌
         token = get_token_from_request(request)
+        payload = TokenService.decode_token(token)
+        user_id = payload.get("user_id")
+        async with AsyncSessionLocal() as db:
+            try:
+                await crud.update_user(db, user_id, {"is_active": False})
+            except Exception as e:
+                logger.error(f"Error updating user status: {str(e)}")
+        
         if token:
             # 将令牌加入黑名单
             TokenService.revoke_token(token)
@@ -658,7 +680,6 @@ async def logout_user(request):
         print(f"Error: {e}")
         return ApiResponse.error(message="退出登录失败", status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 async def get_user_ip_history(request):
     """
     获取用户IP地址历史
@@ -673,11 +694,13 @@ async def get_user_ip_history(request):
             
             # 构建IP地址历史信息
             ip_history = {
+                "user_id": user.user_id,
                 "current_ip": user.ip_address,
                 "last_login": user.last_login.isoformat() if user.last_login else None,
                 "user_info": {
                     "username": user.username,
-                    "email": user.email
+                    "is_admin": user.is_admin,
+                    "is_active": user.is_active
                 }
             }
             
@@ -693,8 +716,6 @@ async def get_user_ip_history(request):
             message="获取用户IP历史失败",
             status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-
 
 async def register_precheck_and_send_verification(request):
     """
@@ -712,15 +733,15 @@ async def register_precheck_and_send_verification(request):
             return ApiResponse.validation_error("无效的 JSON 格式")
         
         # 验证必填字段
-        # required_fields = ['username', 'email', 'phone', 'password']
-        required_fields = ['email']
+        required_fields = ['username', 'email']
+        # required_fields = ['email']
         
         for field in required_fields:
             if field not in user_data:
                 logger.warning(f"Missing required field: {field}")
                 return ApiResponse.validation_error(f"缺少必填字段: {field}")
         
-        # username = user_data['username']
+        username = user_data['username']
         email = user_data['email']
         # phone = user_data['phone']
         
@@ -738,7 +759,10 @@ async def register_precheck_and_send_verification(request):
         try:
             if await crud.check_email_exists(email):
                 logger.warning(f"Email already exists: {email}")
-                return ApiResponse.validation_error("邮箱已被注册")
+                return ApiResponse.validation_error("该邮箱已被注册")
+            elif await crud.check_username_exists(username):
+                logger.warning(f"Username already exists: {username}")
+                return ApiResponse.validation_error("该用户名已被注册，请换个用户名吧~")
         except Exception as e:
             logger.error(f"Error checking email existence: {str(e)}")
             return ApiResponse.error("邮箱检查失败")
@@ -754,29 +778,29 @@ async def register_precheck_and_send_verification(request):
             
         # 生成验证码
         from apps.users.utils import generate_numeric_verification_code, send_verification_email
-        verification_code = generate_numeric_verification_code()
-        logger.debug(f"Generated verification code for {email}: {verification_code}")
+        code = generate_numeric_verification_code()
+        logger.debug(f"Generated verification code for {username}: {email}: {code}")
         
         # 缓存验证码和用户数据
         try:
             cache_data = {
-                'code': verification_code,
+                'code': code,
                 'user_data': {
-                    # 'username': username,
+                    'username': username,
                     'email': email
                     # 'phone': phone,
                     # 'password': user_data['password']
                 }
             }
-            await Cache.set(f"registration:{email}", cache_data, expire=300)  # 5分钟过期
-            logger.info(f"Verification code and user data cached for {email}")
+            await Cache.set(f"registration:{username}", cache_data, expire=300)  # 5分钟过期
+            logger.info(f"Verification code and user data cached for {username}: {email}")
         except Exception as e:
             logger.error(f"Failed to cache verification data: {str(e)}")
             return ApiResponse.error("验证数据缓存失败")
             
         # 发送验证码邮件
         try:
-            email_sent = await send_verification_email(email, verification_code)
+            email_sent = await send_verification_email(email, code, username)
             if not email_sent:
                 logger.error("Failed to send verification email")
                 return ApiResponse.error("验证码发送失败")
@@ -790,7 +814,6 @@ async def register_precheck_and_send_verification(request):
     except Exception as e:
         logger.error(f"Registration precheck failed: {str(e)}")
         return ApiResponse.error("注册预检失败")
-
 
 async def verify_and_register(request: Request) -> Response:
     """
@@ -808,22 +831,23 @@ async def verify_and_register(request: Request) -> Response:
             return ApiResponse.validation_error("无效的 JSON 格式")
             
         email = request_data.get('email')
-        verification_code = request_data.get('code')
+        username = request_data.get('username')
+        code = request_data.get('code')
 
         
-        if not email or not verification_code:
+        if not email or not code:
             logger.warning("Missing email or verification code")
             return ApiResponse.validation_error("邮箱和验证码不能为空")
             
         # 从Redis获取验证码和用户数据
         try:
-            cached_data = await Cache.get(f"registration:{email}")
+            cached_data = await Cache.get(f"registration:{username}")
             if not cached_data:
-                logger.warning(f"No registration data found for email: {email}")
+                logger.warning(f"No registration data found for email: {username}:{email}")
                 return ApiResponse.error("验证码已过期")
                 
-            if verification_code != cached_data['code']:
-                logger.warning(f"Invalid verification code for email: {email}")
+            if code != cached_data['code']:
+                logger.warning(f"Invalid verification code for email: {username}:{email}")
                 return ApiResponse.error("验证码错误")
                 
             user_data = cached_data['user_data']
@@ -838,6 +862,7 @@ async def verify_and_register(request: Request) -> Response:
             # 确保密码被正确加密
             user_data['password'] = get_password_hash(request_data['password'])
             user_data['user_id'] = generate_user_id()
+            username = user_data['username']
             # 获取用户IP地址
             ip_address = request.headers.get("X-Real-IP") or request.headers.get("X-Forwarded-For") or request.ip_addr
             user_data['ip_address'] = ip_address
@@ -847,11 +872,14 @@ async def verify_and_register(request: Request) -> Response:
             async with AsyncSessionLocal() as db:
                 try:
                     # 再次检查用户是否已存在
-                    existing_user = await crud.get_user_by_filter(db, {"email": email})
-
-                    if existing_user:
+                    existing_user_email = await crud.get_user_by_filter(db, {"email": email})
+                    existing_user_username = await crud.get_user_by_filter(db, {"username": username})
+                    if existing_user_email:
                         logger.warning(f"User already exists with email: {email}")
-                        return ApiResponse.error("用户已存在")
+                        return ApiResponse.error(f"邮箱{email}已被注册")
+                    elif existing_user_username:
+                        logger.warning(f"User already exists with username: {username}")
+                        return ApiResponse.error(f"用户名{username}已存在")
                         
                     new_user = await crud.create_user(db, user_data)
                     logger.info(f"Created new user with ID: {new_user.user_id if new_user else 'None'}")
@@ -859,32 +887,35 @@ async def verify_and_register(request: Request) -> Response:
                     if new_user and new_user.user_id:
                         # 删除注册缓存数据
                         try:
-                            cache_deleted = await Cache.delete(f"registration:{email}")
+                            cache_deleted = await Cache.delete(f"registration:{username}")
                             if not cache_deleted:
-                                logger.warning(f"Failed to delete registration cache for email: {email}")
+                                logger.warning(f"Failed to delete registration cache for username: {username}")
                         except Exception as cache_error:
                             logger.error(f"Error deleting registration cache: {str(cache_error)}")
                         
                         # 生成Token
                         token_data = {
-                            # "sub": new_user.username,
-                            "email": new_user.email,
-                            "is_admin": new_user.is_admin  # 使用用户对象中的 is_admin 值
+                            "user_id": new_user.user_id,
+                            "username": new_user.username,
+                            "is_admin": new_user.is_admin, 
+                            "is_active": new_user.is_active
                         }
 
                         
                         # 创建访问令牌和刷新令牌
                         access_token = TokenService.create_access_token(token_data)
-                        refresh_token = TokenService.create_refresh_token(token_data)
+                        # refresh_token = TokenService.create_refresh_token(token_data)
 
                         
                         # 创建响应
                         response = ApiResponse.success(
                             message="注册成功并已登录",
                             data={
-                                # "username": new_user.username,
-                                "email": new_user.email,
-                                "refresh_token": refresh_token,
+                                "user_id": new_user.user_id,
+                                "username": new_user.username,
+                                "is_admin": new_user.is_admin,
+                                "is_active": new_user.is_active,
+                                "access_token": access_token,
                                 "ip_address": ip_address
                             }
                         )
@@ -915,3 +946,31 @@ async def verify_and_register(request: Request) -> Response:
     except Exception as e:
         logger.error(f"Verification and registration failed: {str(e)}")
         return ApiResponse.error("注册失败")
+
+async def get_token(request):
+    # 生成Token
+    try:
+        user_id = request.path_params.get("user_id")
+        token_data = {
+            "user_id": user_id
+        }
+
+        # 创建访问令牌和刷新令牌
+        access_token = TokenService.create_access_token(token_data)
+        # refresh_token = TokenService.create_refresh_token(token_data)
+
+        # 创建响应
+        response = ApiResponse.success(
+            message=f"用户{user_id}已获取access_token",
+            data={
+                "user_id": user_id,
+                "access_token": access_token
+            }
+        )
+        
+        return response
+    except Exception as e:
+        return ApiResponse.error(
+            message="获取token失败"
+        )
+

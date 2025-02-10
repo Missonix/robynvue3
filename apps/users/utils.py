@@ -18,13 +18,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(os.path.join(BASE_DIR, "robyn.env"))
 
 # SMTP配置
-SMTP_SERVER = 'xxx.xxx.com'  # 电子邮箱服务器的域名
+SMTP_SERVER = 'smtp.163.com'  # 电子邮箱服务器的域名
 SMTP_PORT = 25  # SSL/TLS加密端口
-SMTP_USERNAME = 'xxx@xxx.com'  # 网站官方邮箱地址
-SMTP_PASSWORD = 'xxxxx'  # 邮箱接口授权码
+SMTP_USERNAME = 'ackerman0919@163.com'  # 网站官方邮箱地址
+SMTP_PASSWORD = 'XZfLeejapK58EuVS'  # 邮箱接口授权码
 SMTP_USE_TLS = False  # 使用 SSL/TLS 加密
-SMTP_FROM_EMAIL = 'xxx@xxx.com'  # 网站官方邮箱地址
-SMTP_FROM_NAME = 'xxx'  # 网站名称
+SMTP_FROM_EMAIL = 'ackerman0919@163.com'  # 网站官方邮箱地址
+SMTP_FROM_NAME = 'RobynVue'  # 网站名称
 
 import time
 import struct
@@ -72,11 +72,11 @@ def generate_user_id():
     return snowflake.generate()
 
 
-async def send_verification_email(email: str, verification_code: str) -> bool:
+async def send_verification_email(email: str, code: str, username: str = None) -> bool:
     """
     发送邮箱验证码
     :param email: 收件人邮箱
-    :param verification_code: 验证码
+    :param code: 验证码
     :return: 是否发送成功
     """
     try:
@@ -88,13 +88,16 @@ async def send_verification_email(email: str, verification_code: str) -> bool:
         message['To'] = email
         message['Subject'] = "RobynVue - 注册验证码"
 
+        if not username:
+            username = ""
+            
         # 邮件正文
         body = f"""
-        尊敬的用户：
+        尊敬的用户{username}：
         
         您好！感谢您注册 RobynVue。
         
-        您的验证码是：{verification_code}
+        您的验证码是：{code}
         
         该验证码将在5分钟后失效，请尽快完成注册。
         

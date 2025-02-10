@@ -114,6 +114,23 @@ async def check_email_exists(email: str) -> bool:
         logger.error(f"Error checking email existence: {str(e)}")
         raise
 
+async def check_username_exists(username: str) -> bool:
+    """
+    检查用户名是否已存在
+    :param username: 用户名
+    :return: 是否存在
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(User).where(User.username == username)
+            )
+            user = result.scalar_one_or_none()
+            return user is not None
+    except Exception as e:
+        logger.error(f"Error checking username existence: {str(e)}")
+        raise
+
 async def check_phone_exists(phone: str) -> bool:
     """
     检查手机号是否已存在

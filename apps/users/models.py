@@ -13,7 +13,7 @@ class User(Base):
     __tablename__ = 'users'
     
     user_id = Column(String(20), primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True, nullable=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
     nickname = Column(String(50), index=True, default='undefined', nullable=True)
     email = Column(String(100), unique=True, index=True, nullable=False)
     phone = Column(String(20), unique=True, index=True, nullable=True)

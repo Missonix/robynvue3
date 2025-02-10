@@ -13,6 +13,12 @@
   - [获取消息](#获取消息)
   - [删除消息](#删除消息)
   - [修改消息](#修改消息)
+- [views接口](#views接口)
+  - [新建会话接口](#新建会话接口)
+  - [获取会话列表接口](#获取会话列表接口)
+  - [删除单个会话](#删除单个会话)
+  - [获取单个会话](#获取单个会话)
+
 
 ---
 
@@ -385,6 +391,93 @@ update_message_content(db, message_id, new_content)
   "data": "消息编辑成功"
 }
 ```
+
+## views接口
+
+### 新建会话接口
+**POST** `/aichat/createsession`
+
+请求体：
+```json
+{
+    "user_id": "544112870296649728",
+    "title": "全世界面积最大的岛是哪个岛？",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTQ0MTEyODcwMjk2NjQ5NzI4IiwiZXhwIjoxNzM5MjAxMTUwLCJpYXQiOjE3MzkxOTkzNTAsInR5cGUiOiJhY2Nlc3MifQ.wqIpOn0NbJSgHA9JXN-8iwFS2Lpksmf_qBh-ya9uXTM"
+}
+```
+
+成功响应：
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "session_id": "54c1e4b6-8763-47c5-8ac4-ca7da479b3ce",
+        "user_id": "544112870296649728",
+        "title": "全世界面积最大的岛是哪个岛？",
+        "message_count": 0,
+        "created_at": "2025-02-10T15:02:54.393249",
+        "updated_at": "2025-02-10T15:02:54.393249",
+        "is_deleted": false
+    }
+}
+```
+
+### 获取会话列表接口
+**GET** `/aichat/getsessionlist/:user_id`
+
+成功响应：
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "list": [
+            {
+                "session_id": "ec2f73f1-5210-495b-90c1-80f69ac36f19",
+                "user_id": "544112870296649728",
+                "title": "机器学习介绍",
+                "message_count": 0,
+                "created_at": "2025-02-10T14:37:49.495447",
+                "updated_at": "2025-02-10T14:37:49.495447",
+                "is_deleted": false
+            },
+            {
+                "session_id": "89662873-e48a-4a9b-902d-48d3932de006",
+                "user_id": "544112870296649728",
+                "title": "数学技巧",
+                "message_count": 0,
+                "created_at": "2025-02-10T14:37:43.339597",
+                "updated_at": "2025-02-10T14:37:43.339597",
+                "is_deleted": false
+            },
+            ...
+        ],
+        "pagination": {
+            "total": 21,
+            "pageSize": 20,
+            "pageNum": 1,
+            "totalPages": 2
+        }
+    }
+}
+```
+
+### 删除会话接口
+**DELETE** `/aichat/deletesession/:session_id`
+
+成功响应：
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": "会话删除成功"
+}
+```
+
+
+
+
 
 ---
 

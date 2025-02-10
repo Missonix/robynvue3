@@ -50,7 +50,9 @@ class ChatMessage(Base):
     """
     __tablename__ = 'chat_messages'
     
-    message_id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, primary_key=True, autoincrement=True)
+    type = Column(String(20), nullable=True)
+    stream_id = Column(String(20), nullable=True)
     content = Column(Text, nullable=False)                        # 消息内容（使用Text类型支持长文本）
     role = Column(String(20), nullable=False)                     # 消息角色：user/assistant/system
     session_id = Column(String(20), ForeignKey('chat_sessions.session_id'), index=True)  # 关联会话表
@@ -67,12 +69,14 @@ class ChatMessage(Base):
     )
 
     def __repr__(self):
-        return f"ChatMessage(message_id={self.message_id}, content={self.content}, role={self.role}, session_id={self.session_id}, created_at={self.created_at}, updated_at={self.updated_at}, is_deleted={self.is_deleted})"
+        return f"ChatMessage(message_id={self.message_id}, type={self.type}, stream_id={self.stream_id}, content={self.content}, role={self.role}, session_id={self.session_id}, created_at={self.created_at}, updated_at={self.updated_at}, is_deleted={self.is_deleted})"
 
     def to_dict(self):
         """转换为字典格式"""
         return {
             "message_id": self.message_id,
+            "type": self.type,
+            "stream_id": self.stream_id,
             "content": self.content,
             "role": self.role,
             "session_id": self.session_id,
