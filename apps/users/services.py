@@ -244,21 +244,20 @@ async def login_user(request):
             async with AsyncSessionLocal() as db:
                 user = await crud.get_user_by_filter(db, {"email": user_data["email"]})
                 if user:
-                    await crud.update_user(db, user.user_id, {"ip_address": ip_address, "last_login": datetime.utcnow()})
-                    logger.info(f"Updated user {user.username} IP address to {ip_address}")
+                    await crud.update_user(db, user.user_id, {"is_activate":True, "ip_address": ip_address, "last_login": datetime.utcnow()})
+                    logger.info(f"Updated user {user.username} IP address to {ip_address},user is_activate is True")
             
             # 生成Token
             token_data = {
                 "user_id": user_data["user_id"],
                 "username": user_data["username"],
                 "is_admin": user_data.get("is_admin", False),
-                "is_active": user_data.get("is_active", True)
+                "is_active": True
             }
             
             # 创建访问令牌和刷新令牌
             access_token = TokenService.create_access_token(token_data)
             # refresh_token = TokenService.create_refresh_token(token_data)
-
             # 创建响应
             response = ApiResponse.success(
                 message="登录成功",
@@ -266,7 +265,7 @@ async def login_user(request):
                     "user_id": user_data["user_id"],
                     "username": user_data["username"],
                     "is_admin": user_data.get("is_admin", False),
-                    "is_active": user_data.get("is_active", True),
+                    "is_active": True,
                     "ip_address": ip_address,
                     "access_token": access_token
                 }
@@ -308,7 +307,7 @@ async def refresh_token(request):
             "user_id": payload["user_id"],
             "username": payload["username"],
             "is_admin": payload.get("is_admin", False),
-            "is_active": payload.get("is_active", True)
+            "is_active": True
         }
         new_access_token = TokenService.create_access_token(token_data)
         
@@ -449,7 +448,7 @@ async def login_user_by_email(request):
                 "user_id": user_data.get("user_id"),
                 "username": user_data.get("username"),
                 "is_admin": user_data.get("is_admin", False),
-                "is_active": user_data.get("is_active", True)
+                "is_active": True   
             }
             
             # 创建访问令牌和刷新令牌
@@ -463,7 +462,7 @@ async def login_user_by_email(request):
                     "user_id": user_data["user_id"],
                     "username": user_data["username"],
                     "is_admin": user_data.get("is_admin", False),
-                    "is_active": user_data.get("is_active", True),
+                    "is_active": True,
                     "access_token": access_token,
                     "ip_address": ip_address
                 }
@@ -565,7 +564,7 @@ async def forgot_password_by_email(request):
                 "user_id": user_data["user_id"],
                 "username": user_data["username"],
                 "is_admin": user_data.get("is_admin", False),
-                "is_active": user_data.get("is_active", True)
+                "is_active": True
             }
             
             # 创建访问令牌和刷新令牌
@@ -579,7 +578,7 @@ async def forgot_password_by_email(request):
                     "user_id": user_data["user_id"],
                     "username": user_data["username"],
                     "is_admin": user_data.get("is_admin", False),
-                    "is_active": user_data.get("is_active", True),
+                    "is_active": True,
                     "access_token": access_token,
                     "ip_address": ip_address
                 }
@@ -619,7 +618,7 @@ async def check_and_refresh_token(request):
                 "user_id": payload["user_id"],
                 "username": payload["username"],
                 "is_admin": payload.get("is_admin", False),
-                "is_active": payload.get("is_active", True)
+                "is_active": True
             }
             new_access_token = TokenService.create_access_token(token_data)
             
@@ -630,7 +629,7 @@ async def check_and_refresh_token(request):
                     "user_id": payload["user_id"],
                     "username": payload["username"],
                     "is_admin": payload.get("is_admin", False),
-                    "is_active": payload.get("is_active", True)
+                    "is_active": True
                 }
             )
             
@@ -700,7 +699,7 @@ async def get_user_ip_history(request):
                 "user_info": {
                     "username": user.username,
                     "is_admin": user.is_admin,
-                    "is_active": user.is_active
+                    "is_active": True
                 }
             }
             
@@ -898,7 +897,7 @@ async def verify_and_register(request: Request) -> Response:
                             "user_id": new_user.user_id,
                             "username": new_user.username,
                             "is_admin": new_user.is_admin, 
-                            "is_active": new_user.is_active
+                            "is_active": True
                         }
 
                         
@@ -914,7 +913,7 @@ async def verify_and_register(request: Request) -> Response:
                                 "user_id": new_user.user_id,
                                 "username": new_user.username,
                                 "is_admin": new_user.is_admin,
-                                "is_active": new_user.is_active,
+                                "is_active": True,
                                 "access_token": access_token,
                                 "ip_address": ip_address
                             }
@@ -974,3 +973,106 @@ async def get_token(request):
             message="获取token失败"
         )
 
+async def check_token(request):
+    """
+    检查令牌状态
+    """
+    try:
+        token = get_token_from_request(request)
+        if not token:
+            return ApiResponse.error(f"没有获取到token")
+        logger.info(f"token2是:{token}")
+            
+        # 检查令牌是否需要续期
+        needs_refresh, payload = TokenService.check_token_needs_refresh(token)
+        logger.info(f"是否需要刷新:{needs_refresh},解码后的数据是：{payload}")
+        if needs_refresh and payload:
+            # 创建响应
+            response = ApiResponse.success(
+                message="token已过期",
+                data={
+                    "user_id": payload["user_id"],
+                    "username": payload["username"],
+                    "is_admin": payload.get("is_admin", False),
+                    "is_active": payload.get("is_active", True)
+                }
+            )
+            
+            return response
+        elif not needs_refresh and payload:
+            # 如果不需要续期，返回成功响应
+            return ApiResponse.success(message="token生效中，无需续期",
+                                       data={
+                                            "user_id": payload["user_id"],
+                                            "username": payload["username"],
+                                            "is_admin": payload.get("is_admin", False),
+                                            "is_active": payload.get("is_active", True)
+                                        })
+                                    
+    except Exception as e:
+        logger.error(f"Error checking token refresh: {str(e)}")
+        response = ApiResponse.error(f"查询失败")
+        return response
+
+async def get_userinfo(request):
+    """
+    从token中获取用户信息
+    """
+    try:
+        token = get_token_from_request(request)
+        if not token:
+            return ApiResponse.error(f"没有获取到token")
+        logger.info(f"token是:{token}")
+            
+        # 检查令牌是否需要续期
+        needs_refresh, payload = TokenService.check_token_needs_refresh(token)
+        logger.info(f"是否需要刷新:{needs_refresh},解码后的数据是：{payload}")
+        if not payload:
+            return ApiResponse.unauthorized("无效的token")
+
+        if needs_refresh and payload:
+        
+            # 创建新的访问令牌
+            token_data = {
+                "user_id": payload["user_id"],
+                "username": payload["username"],
+                "is_admin": payload.get("is_admin", False),
+                "is_active": True
+            }
+            new_access_token = TokenService.create_access_token(token_data)
+            
+            # 创建响应
+            response = ApiResponse.success(
+                message="令牌刷新成功",
+                data={
+                    "user_id": payload["user_id"],
+                    "username": payload["username"],
+                    "is_admin": payload.get("is_admin", False),
+                    "is_active": payload.get("is_active", True),
+                    "access_token": new_access_token
+                    }
+                )
+            
+            # 设置新的访问令牌
+            response.headers["Set-Cookie"] = (
+                f"access_token=Bearer {new_access_token}; "
+                f"HttpOnly; Secure; Path=/; SameSite=Strict; "
+                f"Max-Age={30*60}"  # 30分钟
+            )
+            
+            return response
+        elif not needs_refresh and payload:
+            # 如果不需要续期，返回成功响应
+            return ApiResponse.success(message="获取用户信息成功",
+                                       data={
+                                            "user_id": payload["user_id"],
+                                            "username": payload["username"],
+                                            "is_admin": payload.get("is_admin", False),
+                                            "is_active": payload.get("is_active", True),
+                                            "access_token": token
+                                        })
+                                    
+    except Exception as e:
+        logger.error(f"无法获取用户信息: {str(e)}")
+        response = ApiResponse.error(f"获取用户信息失败")
+        return response

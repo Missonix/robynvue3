@@ -13,12 +13,16 @@
   - [获取消息](#获取消息)
   - [删除消息](#删除消息)
   - [修改消息](#修改消息)
-- [views接口](#views接口)
-  - [新建会话接口](#新建会话接口)
-  - [获取会话列表接口](#获取会话列表接口)
-  - [删除单个会话](#删除单个会话)
-  - [获取单个会话](#获取单个会话)
-
+- [视图路由接口](#视图路由接口)
+  - [会话管理api](#会话管理api)
+    - [获取会话列表api](#获取会话列表api)
+    - [获取会话列表(用于消息首屏加载)](#获取会话列表用于消息首屏加载)
+    - [获取单个会话api](#获取单个会话api)
+    - [创建会话api](#创建会话api)
+    - [更新会话标题api](#更新会话标题api)
+    - [删除会话api](#删除会话api)
+    - [获取会话消息api](#获取会话消息api)
+- [Websocket通信](#Websocket通信)
 
 ---
 
@@ -392,90 +396,97 @@ update_message_content(db, message_id, new_content)
 }
 ```
 
-## views接口
 
-### 新建会话接口
-**POST** `/aichat/createsession`
+## 视图路由接口
 
-请求体：
+### 会话管理api
+
+#### 获取会话列表api
+- **路径**: `/aichat/getsessionlist/:user_id`
+- **方法**: GET
+- **描述**: 获取指定用户的会话列表
+- **参数**:
+  - user_id: 用户ID (路径参数)
+  - page: 页码 (查询参数，默认1)
+  - page_size: 每页数量 (查询参数，默认20)
+- **返回**: 会话列表及分页信息
+
+#### 获取会话列表用于消息首屏加载
+- **路径**: `/aichat/getsessionlistshow/:user_id`
+- **方法**: GET
+- **描述**: 获取会话列表，并包含最近一次更新会话的50条消息
+- **参数**:
+  - user_id: 用户ID (路径参数)
+- **返回**: 会话列表(包含最新会话的消息)及分页信息
+
+#### 获取单个会话api
+- **路径**: `/aichat/sessions/:session_id`
+- **方法**: GET
+- **描述**: 获取单个会话详情
+- **参数**:
+  - session_id: 会话ID (路径参数)
+- **返回**: 会话详情及最近50条消息
+
+#### 创建会话api
+- **路径**: `/aichat/createsession`
+- **方法**: POST
+- **描述**: 创建新的会话
+- **请求体**:
+  ```json
+  {
+    "user_id": "用户ID",
+    "title": "会话标题(可选)"
+  }
+  ```
+- **返回**: 新创建的会话信息
+
+#### 更新会话标题api
+- **路径**: `/aichat/sessions/:session_id`
+- **方法**: PATCH
+- **描述**: 更新指定会话的标题
+- **参数**:
+  - session_id: 会话ID (路径参数)
+- **请求体**:
+  ```json
+  {
+    "new_title": "新标题"
+  }
+  ```
+- **返回**: 更新成功确认
+
+#### 删除会话api
+- **路径**: `/aichat/deletesession/:session_id`
+- **方法**: DELETE
+- **描述**: 删除指定会话
+- **参数**:
+  - session_id: 会话ID (路径参数)
+- **返回**: 删除成功确认
+
+#### 获取会话消息api
+- **路径**: `/aichat/sessions/:session_id/messages`
+- **方法**: GET
+- **描述**: 获取指定会话的历史消息
+- **参数**:
+  - session_id: 会话ID (路径参数)
+  - page: 页码 (查询参数，默认1)
+  - pageSize: 每页数量 (查询参数，默认50)
+- **返回**: 消息列表
+
+
+
+## 响应格式
+
+所有API返回的数据格式统一为：
 ```json
 {
-    "user_id": "544112870296649728",
-    "title": "全世界面积最大的岛是哪个岛？",
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTQ0MTEyODcwMjk2NjQ5NzI4IiwiZXhwIjoxNzM5MjAxMTUwLCJpYXQiOjE3MzkxOTkzNTAsInR5cGUiOiJhY2Nlc3MifQ.wqIpOn0NbJSgHA9JXN-8iwFS2Lpksmf_qBh-ya9uXTM"
+"code": 200, // 状态码
+"message": "", // 消息
+"data": {} // 数据
 }
 ```
 
-成功响应：
-```json
-{
-    "code": 200,
-    "message": "success",
-    "data": {
-        "session_id": "54c1e4b6-8763-47c5-8ac4-ca7da479b3ce",
-        "user_id": "544112870296649728",
-        "title": "全世界面积最大的岛是哪个岛？",
-        "message_count": 0,
-        "created_at": "2025-02-10T15:02:54.393249",
-        "updated_at": "2025-02-10T15:02:54.393249",
-        "is_deleted": false
-    }
-}
-```
-
-### 获取会话列表接口
-**GET** `/aichat/getsessionlist/:user_id`
-
-成功响应：
-```json
-{
-    "code": 200,
-    "message": "success",
-    "data": {
-        "list": [
-            {
-                "session_id": "ec2f73f1-5210-495b-90c1-80f69ac36f19",
-                "user_id": "544112870296649728",
-                "title": "机器学习介绍",
-                "message_count": 0,
-                "created_at": "2025-02-10T14:37:49.495447",
-                "updated_at": "2025-02-10T14:37:49.495447",
-                "is_deleted": false
-            },
-            {
-                "session_id": "89662873-e48a-4a9b-902d-48d3932de006",
-                "user_id": "544112870296649728",
-                "title": "数学技巧",
-                "message_count": 0,
-                "created_at": "2025-02-10T14:37:43.339597",
-                "updated_at": "2025-02-10T14:37:43.339597",
-                "is_deleted": false
-            },
-            ...
-        ],
-        "pagination": {
-            "total": 21,
-            "pageSize": 20,
-            "pageNum": 1,
-            "totalPages": 2
-        }
-    }
-}
-```
-
-### 删除会话接口
-**DELETE** `/aichat/deletesession/:session_id`
-
-成功响应：
-```json
-{
-    "code": 200,
-    "message": "success",
-    "data": "会话删除成功"
-}
-```
-
-
+## Websocket通信
+- **路径**: `/ws/:session_id`
 
 
 

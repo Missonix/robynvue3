@@ -12,9 +12,10 @@ from apps.users.services import (
     verify_and_register,
     send_verification_code_by_email,
     login_user_by_email,
-    forgot_password_by_email
+    forgot_password_by_email,
+    get_userinfo
 )
-from core.middleware import error_handler, request_logger, auth_required, admin_required, rate_limit
+from core.middleware import error_handler, request_logger, auth_required, admin_required, rate_limit, auth_userinfo
 from core.logger import setup_logger
 
 # 设置日志记录器
@@ -114,18 +115,10 @@ async def delete_user(request: Request) -> Response:
 
 @error_handler
 @request_logger
-@auth_required
+# @auth_userinfo
 async def get_current_user(request: Request) -> Response:
     """获取当前登录用户信息"""
-    try:
-        # 从请求中获取用户信息（由auth_required中间件添加）
-        user = request.user_info
-        if not user:
-            return ApiResponse.unauthorized("未找到用户信息")
-        return ApiResponse.success(data=user)
-    except Exception as e:
-        logger.error(f"Error getting current user: {str(e)}")
-        return ApiResponse.error("获取用户信息失败")
+    return await get_userinfo(request)
 
 @error_handler
 @request_logger

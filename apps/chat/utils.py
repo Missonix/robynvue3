@@ -64,27 +64,30 @@ def ai_websocket(app: Robyn):
 
     @websocket.on("connect")
     async def handle_connect(ws):
-        token = ws.query_params.get("token") 
-        if not TokenService.verify_token(token):
+        session_id = ws.query_params.get("session_id")  # 获取客户端提供的会话ID
+
+        if not session_id:  # 新增：检查session_id是否存在
             await ws.async_send_to(ws.id, json.dumps({
                 "type": "error",
-                "content": f"token验证失败，请重新登录！"
+                "content": "缺少会话ID参数"
             }))
-            await ws.async_close()
             return ""
-        
-        user_data = TokenService.decode_token(token)
-        user_id = user_data.get("user_id")
-        session_id = ws.query_params.get("session_id")  # 获取客户端提供的会话ID
         
         print(f"客户端 {ws.id} 已连接")
 
-        # 检查会话ID是否存在
-        async with AsyncSessionLocal() as db:
-            existing_session = await crud.get_session(db, session_id=session_id)
-        
-        if existing_session:
-            # 如果会话存在，加载历史消息
+        try:
+            # 检查会话ID是否存在
+            async with AsyncSessionLocal() as db:
+                existing_session = await crud.get_session(db, session_id=session_id)
+            
+            if not existing_session:
+                # 修改：直接使用明确错误信息
+                error_msg = f"会话不存在：{session_id}"
+                await ws.async_send_to(ws.id, json.dumps({
+                    "type": "error",
+                    "content": error_msg
+                }))
+                return ""
             # 从 Redis 中获取消息队列
             messages = await Cache.get_messages(session_id)
             ai_chat = AiChat()
@@ -105,34 +108,30 @@ def ai_websocket(app: Robyn):
                     cur_messagelist.append(cur_message)
                 await ai_chat.load_chat_history(cur_messagelist)
 
-            
-                
-        else:
-            # 如果会话不存在，返回错误
-            error_msg = f"会话不存在：{str(e)}"
-            await ws.async_send_to(ws.id, json.dumps({
-                    "type": "error",
-                    "content": error_msg
-                }))
+            active_ws[ws.id] = {
+                "ai_chat": ai_chat,
+                "session_id": session_id,  # 添加 session_id 到 active_ws 状态中
+                "current_stream_id": None,
+                "last_activity": time.time(),  # 最后活动时间
+                "last_ping": time.time(),       # 最后发送ping时间
+                "waiting_pong": False,          # 是否在等待pong响应
+                "ws": ws                        # 保存ws实例
+            }
+            # await ws.async_send_to(ws.id, json.dumps({
+            #     "type": "system",
+            #     "content": f"欢迎{session_id}来到AI聊天室！"
+            # }))
             return ""
-            
-
-
         
-        active_ws[ws.id] = {
-            "ai_chat": ai_chat,
-            "session_id": session_id,  # 添加 session_id 到 active_ws 状态中
-            "current_stream_id": None,
-            "last_activity": time.time(),  # 最后活动时间
-            "last_ping": time.time(),       # 最后发送ping时间
-            "waiting_pong": False,          # 是否在等待pong响应
-            "ws": ws                        # 保存ws实例
-        }
-        await ws.async_send_to(ws.id, json.dumps({
-            "type": "system",
-            "content": f"欢迎{session_id}来到AI聊天室！"
-        }))
-        return ""
+        except Exception as e:  # 捕获可能的异常
+            error_msg = f"服务器错误：{str(e)}"
+            await ws.async_send_to(ws.id, json.dumps({
+                "type": "error",
+                "content": error_msg
+            }))
+            return ""        
+    
+    
 
     @websocket.on("close")
     async def handle_close(ws):
@@ -185,6 +184,8 @@ def ai_websocket(app: Robyn):
             # 处理用户消息
             if msg_data.get("type") == "user":
                 content = msg_data.get("content", "").strip()
+                print("#####################content##############################")
+                print(content)
             if not content:
                 await ws.async_send_to(ws.id, json.dumps({
                     "type": "error",
@@ -214,16 +215,25 @@ def ai_websocket(app: Robyn):
             stream_id = str(uuid.uuid4())
             active_ws[ws.id]["current_stream_id"] = stream_id
 
+            print("#####################stream_id##############################")
+            print(stream_id)
+
             await ws.async_send_to(ws.id, json.dumps({
                 "type": "stream_start",
                 "stream_id": stream_id
             }))
+
+            print("#####################xxxxxx##############################")
+            print("xxxxxx")
+
             
             # 初始化累积变量
             full_ai_response = ""
 
             async for ai_response in data["ai_chat"].chat(content=content):
                 # 增加响应内容检查
+                print("#####################ai_response##############################")
+                print(ai_response)
                 if ai_response is None:
                     continue
                 full_ai_response += ai_response  # 累积完整响应

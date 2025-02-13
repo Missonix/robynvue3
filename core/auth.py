@@ -7,6 +7,7 @@ from core.logger import setup_logger
 from apps.users import crud
 from core.database import AsyncSessionLocal
 from core.token_blacklist import token_blacklist
+from robyn import Request
 
 # 设置日志记录器
 logger = setup_logger('auth')
@@ -126,6 +127,7 @@ class TokenService:
         :return: (是否需要续期, 令牌数据)
         """
         payload = TokenService.decode_token(token)
+        print("payload是",payload)
         if not payload:
             return False, None
             
@@ -179,7 +181,7 @@ class TokenService:
             logger.error(f"Admin verification error: {str(e)}")
             return False
 
-def get_token_from_request(request) -> Optional[str]:
+def get_token_from_request(request: Request) -> Optional[str]:
     """
     从请求中获取Token
     优先从Authorization头获取，其次从cookie获取
@@ -190,11 +192,6 @@ def get_token_from_request(request) -> Optional[str]:
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         return auth_header.split(" ")[1]
-    
-    # 从cookie获取
-    auth_cookie = request.cookies.get("access_token")
-    if auth_cookie and auth_cookie.startswith("Bearer "):
-        return auth_cookie.split(" ")[1]
     
     return None
 

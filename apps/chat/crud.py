@@ -30,6 +30,8 @@ async def create_session(db: AsyncSession, session_id: str, user_id: str, title:
 
 async def get_session(db: AsyncSession, session_id: str) -> Optional[ChatSession]:
     """获取单个会话详情"""
+    if not session_id:  # 防御性检查
+        return None
     result = await db.execute(
         select(ChatSession)
         .where(ChatSession.session_id == session_id)

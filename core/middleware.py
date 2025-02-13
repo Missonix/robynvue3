@@ -5,11 +5,13 @@ from robyn import Request, Response, status_codes
 from core.response import ApiResponse
 from sqlalchemy.exc import SQLAlchemyError
 from core.logger import setup_logger
-from core.auth import TokenService, get_token_from_request
+from core.auth import TokenService, get_token_from_request, get_current_user
 from apps.users.services import check_and_refresh_token
+
 
 # 设置日志记录器
 logger = setup_logger('middleware')
+
 
 def error_handler(func: Callable) -> Callable:
     """
@@ -90,6 +92,36 @@ def auth_required(func: Callable) -> Callable:
             response.headers.update(refresh_response.headers)
             return response
         
+        return await func(request, *args, **kwargs)
+    return wrapper
+
+def auth_userinfo(func: Callable) -> Callable:
+    @wraps(func)
+    async def wrapper(request: Request, *args, **kwargs) -> Response:
+        token = get_token_from_request(request)
+        if not token:
+            return ApiResponse.unauthorized("请先登录")
+        
+        # 验证令牌有效性
+        if not TokenService.verify_token(token):
+            return ApiResponse.unauthorized("登录已过期，请重新登录")
+        
+        # 获取用户信息并设置到 request 中
+        current_user = await get_current_user(request)
+        if not current_user:
+            return ApiResponse.unauthorized("未找到用户信息")
+        
+        # 将用户信息添加到 request 中
+        request.user_info = current_user
+    
+        # 检查是否需要续期
+        refresh_response = await check_and_refresh_token(request)
+        if refresh_response:
+            # 如果需要续期，使用新的响应头
+            response = await func(request, *args, **kwargs)
+            response.headers.update(refresh_response.headers)
+            return response
+    
         return await func(request, *args, **kwargs)
     return wrapper
 

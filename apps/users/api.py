@@ -1,6 +1,6 @@
 from robyn.robyn import Request
 from apps.users.queries import fuzzy_search_user, get_user, get_user_by_id, get_user_by_username, get_users_service
-from apps.users.services import create_user_service, delete_user_service, get_user_by_email, get_user_by_phone, update_user_field_service, update_user_service, get_user_ip_history, get_token
+from apps.users.services import create_user_service, delete_user_service, get_user_by_email, get_user_by_phone, update_user_field_service, update_user_service, get_user_ip_history, get_token, check_token
 
 """
     定义用户API接口
@@ -95,3 +95,9 @@ async def get_token_api(request: Request):
     获取token
     """
     return await get_token(request)
+
+async def check_token_api(request: Request):
+    """
+    检查token状态
+    """
+    return await check_token(request)

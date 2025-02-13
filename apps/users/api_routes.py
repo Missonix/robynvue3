@@ -12,7 +12,8 @@ from apps.users.api import (
     fuzzy_search_user_api,
     update_user_field_api,
     get_user_ip_history_api,
-    get_token_api
+    get_token_api,
+    check_token_api
 )
 from core.middleware import error_handler, request_logger, auth_required, admin_required, rate_limit
 
@@ -133,3 +134,14 @@ def users_api_routes(app):
         获取token
         """
         return await get_token_api(request)
+    
+    @app.get("/api/users/check_token")
+    @error_handler
+    @request_logger
+    @rate_limit(max_requests=100, time_window=60)
+    async def check_token(request):
+        """
+        检查token状态
+        """
+        return await check_token_api(request)
+
